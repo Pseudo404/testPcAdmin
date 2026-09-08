@@ -364,8 +364,12 @@ async function openDetail(id) {
   
   const tb = document.getElementById("dailyRows"); tb.innerHTML = "";
   tRes.daily.forEach(d => {
+    // Conversion de "YYYY-MM-DD" en "DD/MM/YYYY"
+    const [y, m, dayNum] = d.date.split("-");
+    const formattedDate = `${dayNum}/${m}/${y}`;
+
     tb.innerHTML += `<tr class="hover:bg-slate-50">
-      <td class="px-6 py-4 font-medium">${d.date}</td>
+      <td class="px-6 py-4 font-medium">${formattedDate}</td>
       <td class="px-6 py-4">${d.is_complete?'<span class="text-emerald-600 bg-emerald-50 px-2 py-1 rounded text-xs font-bold">Complet</span>':'<span class="text-rose-600 bg-rose-50 px-2 py-1 rounded text-xs font-bold">Incomplet</span>'}</td>
       <td class="px-6 py-4">${d.is_complete?`${Math.floor(d.worked_minutes/60)}h${(d.worked_minutes%60).toString().padStart(2,"0")}`:"-"}</td>
       <td class="px-6 py-4 text-slate-500">${Math.floor(d.contract_minutes/60)}h</td>
@@ -375,9 +379,40 @@ async function openDetail(id) {
 
   const sigGrid = document.getElementById("tab-signatures"); sigGrid.innerHTML = "";
   sRes.forEach(sig => {
-    sigGrid.innerHTML += `<div class="bg-white rounded-xl border border-slate-200 p-4">
-      <div class="text-sm font-bold">${sig.type_event} — ${sig.horodatage}</div>
-      <img src="${sig.signature}" class="max-h-24 w-full object-contain mt-2 bg-slate-50 rounded border">
+    // Formatage de la date (ex: 28/03) à partir du timestamp "YYYY-MM-DDTHH:MM:SS"
+    const parts = sig.horodatage.split("T");
+    const datePart = parts[0]; // "YYYY-MM-DD"
+    const timePart = parts[1] ? parts[1].substring(0, 5) : ""; // "HH:MM"
+    const [y, m, d] = datePart.split("-");
+    const formattedDate = `${d}/${m}`;
+
+    // Calcul du texte et de la couleur pour l'avance/retard
+    let statusHtml = "";
+    if (sig.delay_minutes !== null && sig.delay_minutes !== undefined) {
+      const mins = sig.delay_minutes;
+      if (mins === 0) {
+        statusHtml = `<span class="text-xs font-bold text-emerald-600">À l'heure</span>`;
+      } else if (mins < 0) {
+        statusHtml = `<span class="text-xs font-bold text-emerald-600">${Math.abs(mins)} min en avance</span>`;
+      } else {
+        statusHtml = `<span class="text-xs font-bold text-rose-600">+${mins} min de retard</span>`;
+      }
+    } else {
+      statusHtml = `<span class="text-xs text-slate-400">Pas d'horaire de référence</span>`;
+    }
+
+    const expectedText = sig.expected_time ? `Prévu : ${sig.expected_time}` : `Prévu : -`;
+
+    sigGrid.innerHTML += `<div class="bg-white rounded-xl border border-slate-200 p-4 flex flex-col justify-between">
+      <div>
+        <div class="flex justify-between items-center mb-1">
+          <span class="text-xs font-bold px-2 py-0.5 bg-slate-100 rounded text-slate-700">${sig.type_event}</span>
+          <span class="text-xs text-slate-500">${formattedDate} à ${timePart}</span>
+        </div>
+        <div class="text-xs text-slate-500 mb-2">${expectedText}</div>
+        <div class="mb-3">${statusHtml}</div>
+      </div>
+      <img src="${sig.signature}" class="max-h-24 w-full object-contain bg-slate-50 rounded border">
     </div>`;
   });
 
