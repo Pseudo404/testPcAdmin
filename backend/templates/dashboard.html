@@ -186,6 +186,16 @@
 
 </main>
 <script>
+function formatCrecheName(nom) {
+  if (!nom) return "";
+  if (nom.includes("Dhuizon")) return "Dhuizon";
+  if (nom.includes("Neung")) return "Neung";
+  if (nom.includes("Jouy") || nom.includes("Barbotine")) return "Jouy le Potier";
+  if (nom.includes("Ferté") || nom.includes("Quint")) return "La ferté sait Aubin";
+  // Remplacement des underscores restants par des espaces si besoin
+  return nom.replace(/_/g, " ");
+}
+
 const API = "http://127.0.0.1:8000";
 const JOURS = [{label:"Lundi",value:0},{label:"Mardi",value:1},{label:"Mercredi",value:2},{label:"Jeudi",value:3},{label:"Vendredi",value:4},{label:"Samedi",value:5},{label:"Dimanche",value:6}];
 let allEmps = [], dbCreches = [], dbEmps = [], crecheStatuses = {};
@@ -264,11 +274,12 @@ async function loadDashboard() {
       const emps = allEmps.filter(e => e.creche_nom === c);
       const tw = emps.reduce((a,e)=>a+e.total_worked_minutes,0);
       const isEnabled = crecheStatuses[c] === true;
+      const displayName = formatCrecheName(c);
       
       cont.innerHTML += `<div onclick="openCreche('${c}')" class="bg-white rounded-2xl p-6 cursor-pointer border border-slate-200 hover:border-purple-300 transition-all shadow-sm flex flex-col justify-between">
         <div>
           <div class="flex justify-between items-start mb-2">
-            <h3 class="text-xl font-bold text-slate-800">🏢 ${c}</h3>
+            <h3 class="text-xl font-bold text-slate-800">🏢 ${displayName}</h3>
             <span class="px-2.5 py-1 rounded-full text-xs font-bold ${isEnabled ? 'bg-emerald-100 text-emerald-700' : 'bg-rose-100 text-rose-700'}">
               ${isEnabled ? '● Activé' : '● Désactivé'}
             </span>
@@ -315,8 +326,9 @@ function renderCrecheHeaderToggle(crecheName) {
 
 async function openCreche(c) {
   curCreche = c;
-  document.getElementById("empTitle").innerText = `Employés - ${c}`;
-  document.getElementById("hdrCreche").innerText = c;
+  const displayName = formatCrecheName(c);
+  document.getElementById("empTitle").innerText = `Employés - ${displayName}`;
+  document.getElementById("hdrCreche").innerText = displayName;
   
   // S'assurer d'avoir l'état de la crèche à jour
   try {
