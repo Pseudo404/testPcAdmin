@@ -1,0 +1,389 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Dashboard Directrice – Mini Crèche</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<style>
+  .hidden { display: none !important; }
+  body { background-color: #f8fafc; font-family: system-ui, -apple-system, sans-serif; }
+</style>
+</head>
+<body class="min-h-screen text-slate-800 flex flex-col">
+
+<!-- HEADER (Inspiré de /admin/layout.tsx) -->
+<header id="hdr" class="hidden bg-purple-700 text-white shadow-md p-4 flex justify-between items-center sticky top-0 z-40">
+  <div class="flex items-center gap-4">
+    <button onclick="goHome()" class="text-xl font-bold flex items-center gap-2 hover:opacity-80 transition-opacity">
+      <span>👩‍💼</span> Dashboard Directrice
+    </button>
+    <span id="hdrCreche" class="hidden text-purple-200 text-sm font-medium bg-purple-800/60 px-3 py-1 rounded-lg"></span>
+  </div>
+  <div class="flex items-center gap-3">
+    <button id="timeclockBtn" onclick="toggleTimeclock()" class="text-xs bg-slate-800 hover:bg-slate-700 text-white px-3.5 py-2 rounded-lg font-semibold transition-colors">◌ Pointeuse</button>
+    <button onclick="openBdd()" class="text-xs bg-amber-500 hover:bg-amber-400 text-white px-3.5 py-2 rounded-lg font-semibold transition-colors">🗄️ BDD</button>
+    <button onclick="logout()" class="text-purple-100 hover:text-white px-4 py-2 rounded-lg hover:bg-purple-600 transition-colors text-sm">Déconnexion</button>
+  </div>
+</header>
+
+<main class="flex-1 p-8 max-w-7xl mx-auto w-full">
+
+<!-- ─── LOGIN ─── -->
+<div id="loginScreen" class="flex items-center justify-center min-h-[75vh]">
+  <div class="w-full max-w-md p-8 bg-white shadow-xl rounded-2xl border border-slate-200">
+    <div class="text-center mb-6">
+      <span class="text-5xl">🏠</span>
+      <h1 class="text-2xl font-bold mt-3 text-slate-800">Mini Crèche</h1>
+      <p class="text-slate-500 text-sm">Espace Directrice</p>
+    </div>
+    <div id="loginErr" class="hidden bg-red-50 text-red-600 border border-red-200 p-3 rounded-lg mb-4 text-sm text-center"></div>
+    <form onsubmit="doLogin(event)" class="flex flex-col gap-4">
+      <div>
+        <label class="block text-sm font-medium text-slate-700 mb-1">Identifiant</label>
+        <input id="uname" type="text" placeholder="Administrateur" required class="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-purple-500 text-sm">
+      </div>
+      <div>
+        <label class="block text-sm font-medium text-slate-700 mb-1">Mot de passe</label>
+        <input id="upass" type="password" required class="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-purple-500 text-sm">
+      </div>
+      <button type="submit" id="loginBtn" class="py-3 bg-purple-600 text-white rounded-xl font-semibold hover:bg-purple-700 transition-colors">Se connecter</button>
+    </form>
+  </div>
+</div>
+
+<!-- ─── DASHBOARD / CRÈCHES (Inspiré de /admin/dashboard/page.tsx) ─── -->
+<div id="crechesScreen" class="hidden">
+  <div class="flex flex-col md:flex-row justify-between items-start md:items-end mb-8 gap-4">
+    <div>
+      <h1 class="text-3xl font-bold text-slate-800 mb-2">Tableau de bord</h1>
+      <p class="text-slate-500">Sélectionnez une crèche pour gérer les employés</p>
+    </div>
+    <input type="month" id="monthPicker" onchange="changeMonth()" class="px-4 py-2 bg-white border border-slate-300 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-purple-500 text-sm">
+  </div>
+  <div id="timeclockNotice" class="hidden mb-6 rounded-2xl border px-5 py-4 text-sm"></div>
+  <div id="crecheCards" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6"></div>
+</div>
+
+<!-- ─── EMPLOYÉES (Vue liste par crèche) ─── -->
+<div id="employeesScreen" class="hidden">
+  <div class="mb-6">
+    <button onclick="goHome()" class="text-purple-600 hover:underline font-medium flex items-center gap-1 text-sm">← Retour aux crèches</button>
+  </div>
+  <div class="flex justify-between items-center mb-6">
+    <h2 id="empTitle" class="text-2xl font-bold text-slate-800">Employés</h2>
+  </div>
+  <div class="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
+    <table class="w-full text-left border-collapse">
+      <thead>
+        <tr class="bg-slate-50 border-b border-slate-200 text-slate-600 text-sm uppercase font-semibold">
+          <th class="px-6 py-4">Nom</th>
+          <th class="px-6 py-4">Emploi du temps</th>
+          <th class="px-6 py-4">Heures prévues (mois)</th>
+          <th class="px-6 py-4">Heures réelles (mois)</th>
+          <th class="px-6 py-4">Heure supp. / Retard</th>
+          <th class="px-6 py-4 text-right">Action</th>
+        </tr>
+      </thead>
+      <tbody id="empRows" class="divide-y divide-slate-100 text-sm"></tbody>
+    </table>
+  </div>
+</div>
+
+<!-- ─── DÉTAIL EMPLOYÉE (Inspiré de /admin/employee/[id]/page.tsx) ─── -->
+<div id="detailScreen" class="hidden">
+  <div class="mb-6">
+    <button onclick="openCreche(curCreche)" class="text-purple-600 hover:underline font-medium text-sm">← Retour aux employés</button>
+  </div>
+  <div class="flex flex-col md:flex-row justify-between items-start md:items-end mb-8 gap-4">
+    <div>
+      <h1 id="detailTitle" class="text-3xl font-bold text-slate-800 mb-2">Détail du pointage</h1>
+      <p id="detailSubtitle" class="text-slate-500 text-sm"></p>
+    </div>
+    <input type="month" id="detailMonthPicker" onchange="changeDetailMonth()" class="px-4 py-2 bg-white border border-slate-300 rounded-lg shadow-sm focus:ring-2 focus:ring-purple-500 text-sm">
+  </div>
+
+  <!-- Cartes de Synthèse -->
+  <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+    <div class="bg-white p-6 rounded-2xl shadow-sm border border-slate-200">
+      <div class="text-sm font-medium text-slate-500 mb-1">Heures Travaillées (Mois)</div>
+      <div id="statWorked" class="text-2xl font-bold text-slate-800">0h00</div>
+    </div>
+    <div class="bg-white p-6 rounded-2xl shadow-sm border border-slate-200">
+      <div class="text-sm font-medium text-slate-500 mb-1">Heures Attendues (Mois)</div>
+      <div id="statContract" class="text-2xl font-bold text-slate-800">0h00</div>
+    </div>
+    <div id="statDiffBox" class="p-6 rounded-2xl shadow-sm border bg-emerald-50 border-emerald-200">
+      <div id="statDiffTitle" class="text-sm font-medium mb-1 text-emerald-700">Solde (+ / -)</div>
+      <div id="statDiff" class="text-2xl font-bold text-emerald-600">+0h00</div>
+    </div>
+  </div>
+
+  <!-- Onglets de Navigation Détail -->
+  <div class="flex border-b border-slate-200 mb-6">
+    <button onclick="switchDetailTab('time')" id="btn-tab-time" class="px-6 py-3 font-medium text-sm border-b-2 border-purple-600 text-purple-600 transition-colors">Calcul des Heures</button>
+    <button onclick="switchDetailTab('schedule')" id="btn-tab-schedule" class="px-6 py-3 font-medium text-sm border-b-2 border-transparent text-slate-500 hover:text-slate-700 transition-colors">📅 Emploi du Temps</button>
+    <button onclick="switchDetailTab('signatures')" id="btn-tab-signatures" class="px-6 py-3 font-medium text-sm border-b-2 border-transparent text-slate-500 hover:text-slate-700 transition-colors">Contrôle des Signatures</button>
+  </div>
+
+  <!-- Onglet 1 : Calcul des Heures -->
+  <div id="tab-time" class="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
+    <table class="w-full text-left border-collapse text-sm">
+      <thead>
+        <tr class="bg-slate-50 border-b border-slate-200 text-slate-600 uppercase font-semibold text-xs">
+          <th class="px-6 py-4">Date</th>
+          <th class="px-6 py-4">Statut</th>
+          <th class="px-6 py-4">Travaillé</th>
+          <th class="px-6 py-4">Attendu</th>
+          <th class="px-6 py-4">Écart (+/-)</th>
+        </tr>
+      </thead>
+      <tbody id="dailyRows" class="divide-y divide-slate-100"></tbody>
+    </table>
+  </div>
+
+  <!-- Onglet 2 : Emploi du Temps Hebdomadaire -->
+  <div id="tab-schedule" class="hidden bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden p-6">
+    <div class="flex justify-between items-center mb-6">
+      <div>
+        <p class="font-semibold text-slate-700 text-sm">Grille horaire hebdomadaire</p>
+        <p class="text-xs text-slate-400 mt-0.5">Laissez vide les jours de repos.</p>
+      </div>
+      <button onclick="saveSchedule()" class="px-5 py-2 bg-purple-600 text-white rounded-lg text-sm font-semibold hover:bg-purple-700 transition-colors">Enregistrer</button>
+    </div>
+    <div id="scheduleRows" class="space-y-3"></div>
+  </div>
+
+  <!-- Onglet 3 : Contrôle des Signatures -->
+  <div id="tab-signatures" class="hidden grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6"></div>
+</div>
+
+<!-- ─── BDD ─── -->
+<div id="bddScreen" class="hidden">
+  <div class="flex justify-between items-center mb-6">
+    <div>
+      <h1 class="text-3xl font-bold text-slate-800">🗄️ Base de Données</h1>
+      <p class="text-slate-500 text-sm mt-1">Administration centrale des crèches et des effectifs</p>
+    </div>
+    <button onclick="seedDb()" class="px-5 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg font-semibold text-sm transition-colors">🌱 Initialiser les données</button>
+  </div>
+  <div id="seedMsg" class="hidden mb-5 p-3 rounded-lg text-sm font-medium border"></div>
+  <div class="flex border-b border-slate-200 mb-6">
+    <button onclick="switchBdd('bddCreches')" id="btn-bddCreches" class="px-5 py-3 font-medium text-sm border-b-2 border-purple-600 text-purple-600">🏢 Crèches</button>
+    <button onclick="switchBdd('bddEmps')" id="btn-bddEmps" class="px-5 py-3 font-medium text-sm border-b-2 border-transparent text-slate-500 hover:text-slate-800">👤 Employées</button>
+  </div>
+  <div id="bddCreches">
+    <div class="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden mb-6">
+      <table class="w-full text-left border-collapse text-sm">
+        <thead><tr class="bg-slate-50 border-b border-slate-200 text-slate-500 text-xs uppercase font-semibold"><th class="px-6 py-4">Nom</th><th class="px-6 py-4">Mot de passe</th><th class="px-6 py-4 text-right">Actions</th></tr></thead>
+        <tbody id="crechesRows" class="divide-y divide-slate-100"></tbody>
+      </table>
+    </div>
+  </div>
+  <div id="bddEmps" class="hidden">
+    <div class="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden mb-6">
+      <table class="w-full text-left border-collapse text-sm">
+        <thead><tr class="bg-slate-50 border-b border-slate-200 text-slate-500 text-xs uppercase font-semibold"><th class="px-6 py-4">Nom</th><th class="px-6 py-4">Prénom</th><th class="px-6 py-4">Rôle</th><th class="px-6 py-4">Crèches</th><th class="px-6 py-4 text-right">Actions</th></tr></thead>
+        <tbody id="empsRows" class="divide-y divide-slate-100"></tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+</main>
+<script>
+const API = "http://127.0.0.1:8000";
+const JOURS = [{label:"Lundi",value:0},{label:"Mardi",value:1},{label:"Mercredi",value:2},{label:"Jeudi",value:3},{label:"Vendredi",value:4},{label:"Samedi",value:5},{label:"Dimanche",value:6}];
+let allEmps = [], dbCreches = [], dbEmps = [];
+let curCreche = "", curEmpId = "", timeclockIsEnabled = false;
+let currentMonth = new Date().getMonth()+1, currentYear = new Date().getFullYear();
+
+function showScreen(id) {
+  ["loginScreen","crechesScreen","employeesScreen","detailScreen","bddScreen"].forEach(s => document.getElementById(s).classList.add("hidden"));
+  document.getElementById(id).classList.remove("hidden");
+  document.getElementById("hdr").classList.toggle("hidden", id==="loginScreen");
+  document.getElementById("hdrCreche").classList.toggle("hidden", id!=="employeesScreen" && id!=="detailScreen");
+  if(id==="employeesScreen" || id==="detailScreen") document.getElementById("hdrCrecheinnerText = curCreche;
+}
+
+function formatMinutes(mins) {
+  const sign = mins < 0 ? "-" : "+";
+  const absMins = Math.abs(Math.round(mins));
+  return `${sign}${Math.floor(absMins/60)}h${(absMins%60).toString().padStart(2,"0")}`;
+}
+
+document.addEventListener("DOMContentLoaded", async () => {
+  const now = new Date();
+  const mStr = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,"0")}`;
+  document.getElementById("monthPicker").value = mStr;
+  document.getElementById("detailMonthPicker").value = mStr;
+  if(localStorage.getItem("admin_logged_in")==="true") {
+    document.getElementById("loginScreen").classList.add("hidden");
+    await loadDashboard();
+  }
+});
+
+async function doLogin(e) {
+  e.preventDefault();
+  const err = document.getElementById("loginErr"); err.classList.add("hidden");
+  try {
+    const r = await fetch(`${API}/login/`, {method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify({username:document.getElementById("uname").value, password:document.getElementById("upass").value})});
+    if(!r.ok) throw new Error((await r.json()).detail || "Erreur");
+    const d = await r.json();
+    if(d.role!=="ADMIN") throw new Error("Accès réservé.");
+    localStorage.setItem("admin_logged_in", "true");
+    await loadDashboard();
+  } catch(ex) { err.innerText = ex.message; err.classList.remove("hidden"); }
+}
+
+function logout() { localStorage.removeItem("admin_logged_in"); showScreen("loginScreen"); }
+function goHome() { loadDashboard(); }
+
+async function loadDashboard() {
+  const r = await fetch(`${API}/admin/employees/?month=${currentMonth}&year=${currentYear}`);
+  allEmps = await r.json();
+  const creches = Array.from(new Set(allEmps.map(e => e.creche_nom)));
+  const cont = document.getElementById("crecheCards"); cont.innerHTML = "";
+  
+  if(!creches.length) {
+    cont.innerHTML = `<div class="col-span-full text-center py-12 text-slate-500 bg-white rounded-2xl border">Aucune crèche. Allez dans 🗄️ BDD.</div>`;
+  } else {
+    creches.forEach(c => {
+      const emps = allEmps.filter(e => e.creche_nom === c);
+      const tw = emps.reduce((a,e)=>a+e.total_worked_minutes,0);
+      cont.innerHTML += `<div onclick="openCreche('${c}')" class="bg-white rounded-2xl p-6 cursor-pointer border border-slate-200 hover:border-purple-300 transition-all shadow-sm">
+        <h3 class="text-xl font-bold text-slate-800 mb-4">🏢 ${c}</h3>
+        <p class="text-sm text-slate-600 flex justify-between"><span>Employés :</span><span class="font-semibold">${emps.length}</span></p>
+        <p class="text-sm text-slate-600 flex justify-between mt-1"><span>Heures (mois) :</span><span class="font-semibold">${Math.floor(tw/60)}h</span></p>
+      </div>`;
+    });
+  }
+  showScreen("crechesScreen");
+}
+
+function openCreche(c) {
+  curCreche = c;
+  document.getElementById("empTitle").innerText = `Employés - ${c}`;
+  document.getElementById("hdrCreche").innerText = c;
+  const emps = allEmps.filter(e => e.creche_nom === c);
+  const tb = document.getElementById("empRows"); tb.innerHTML = "";
+  
+  emps.forEach(emp => {
+    const isPos = emp.diff_minutes >= 0;
+    tb.innerHTML += `<tr class="hover:bg-slate-50">
+      <td class="px-6 py-4 font-medium text-slate-800">${emp.prenom} ${emp.nom}</td>
+      <td class="px-6 py-4 text-slate-600">${emp.heures_jour_contrat} h/jour</td>
+      <td class="px-6 py-4 text-slate-600">${Math.floor(emp.total_contract_minutes/60)}h</td>
+      <td class="px-6 py-4 text-slate-600">${Math.floor(emp.total_worked_minutes/60)}h${(emp.total_worked_minutes%60).toString().padStart(2,"0")}</td>
+      <td class="px-6 py-4">${emp.total_worked_minutes>0?`<span class="px-2.5 py-0.5 rounded-full text-xs font-bold ${isPos?"bg-emerald-100 text-emerald-700":"bg-rose-100 text-rose-700"}">${formatMinutes(emp.diff_minutes)}</span>`:"–"}</td>
+      <td class="px-6 py-4 text-right"><button onclick="openDetail('${emp.id}')" class="px-4 py-2 bg-purple-50 text-purple-700 border border-purple-200 rounded-lg text-sm font-medium hover:bg-purple-100">Voir le pointage</button></td>
+    </tr>`;
+  });
+  showScreen("employeesScreen");
+}
+
+async function openDetail(id) {
+  curEmpId = id;
+  const [tRes, sRes] = await Promise.all([
+    fetch(`${API}/admin/employees/${id}/time/?month=${currentMonth}&year=${currentYear}&creche=${encodeURIComponent(curCreche)}`).then(r=>r.json()),
+    fetch(`${API}/admin/employees/${id}/emargements/?month=${currentMonth}&year=${currentYear}&creche=${encodeURIComponent(curCreche)}`).then(r=>r.json())
+  ]);
+  
+  document.getElementById("detailSubtitle").innerText = tRes.has_schedule ? "Emploi du temps personnalisé actif" : `Forfait : ${tRes.heures_jour_contrat} h/jour`;
+  document.getElementById("statWorked").innerText = `${Math.floor(tRes.total_worked_minutes/60)}h${(tRes.total_worked_minutes%60).toString().padStart(2,"0")}`;
+  document.getElementById("statContract").innerText = `${Math.floor(tRes.total_contract_minutes/60)}h${(tRes.total_contract_minutes%60).toString().padStart(2,"0")}`;
+  document.getElementById("statDiff").innerText = formatMinutes(tRes.total_diff_minutes);
+  
+  const tb = document.getElementById("dailyRows"); tb.innerHTML = "";
+  tRes.daily.forEach(d => {
+    tb.innerHTML += `<tr class="hover:bg-slate-50">
+      <td class="px-6 py-4 font-medium">${d.date}</td>
+      <td class="px-6 py-4">${d.is_complete?'<span class="text-emerald-600 bg-emerald-50 px-2 py-1 rounded text-xs font-bold">Complet</span>':'<span class="text-rose-600 bg-rose-50 px-2 py-1 rounded text-xs font-bold">Incomplet</span>'}</td>
+      <td class="px-6 py-4">${d.is_complete?`${Math.floor(d.worked_minutes/60)}h${(d.worked_minutes%60).toString().padStart(2,"0")}`:"-"}</td>
+      <td class="px-6 py-4 text-slate-500">${Math.floor(d.contract_minutes/60)}h</td>
+      <td class="px-6 py-4 font-semibold ${d.diff_minutes>=0?"text-emerald-600":"text-rose-600"}">${d.is_complete?formatMinutes(d.diff_minutes):"-"}</td>
+    </tr>`;
+  });
+
+  const sigGrid = document.getElementById("tab-signatures"); sigGrid.innerHTML = "";
+  sRes.forEach(sig => {
+    sigGrid.innerHTML += `<div class="bg-white rounded-xl border border-slate-200 p-4">
+      <div class="text-sm font-bold">${sig.type_event} — ${sig.horodatage}</div>
+      <img src="${sig.signature}" class="max-h-24 w-full object-contain mt-2 bg-slate-50 rounded border">
+    </div>`;
+  });
+
+  await loadScheduleTab();
+  switchDetailTab('time');
+  showScreen("detailScreen");
+}
+
+function switchDetailTab(tab) {
+  ["time","schedule","signatures"].forEach(t => {
+    document.getElementById("tab-"+t).classList.toggle("hidden", t!==tab);
+    document.getElementById("btn-tab-"+t).className = `px-6 py-3 font-medium text-sm border-b-2 transition-colors ${t===tab?"border-purple-600 text-purple-600":"border-transparent text-slate-500 hover:text-slate-700"}`;
+  });
+}
+
+async function loadScheduleTab() {
+  const r = await fetch(`${API}/admin/employees/${curEmpId}/schedule/?creche=${encodeURIComponent(curCreche)}`);
+  const data = await r.json();
+  const g = document.getElementById("scheduleRows"); g.innerHTML = "";
+  
+  JOURS.forEach(j => {
+    const s = data.find(x => x.jour === j.value) || {matin_debut:"", matin_fin:"", aprem_debut:"", aprem_fin:""};
+    g.innerHTML += `<div class="flex items-center gap-3 bg-slate-50 p-3 rounded-lg">
+      <span class="w-24 font-semibold text-sm">${j.label}</span>
+      <input type="time" id="s_${j.value}_md" value="${s.matin_debut}" class="px-2 py-1 border rounded text-sm">
+      <input type="time" id="s_${j.value}_mf" value="${s.matin_fin}" class="px-2 py-1 border rounded text-sm">
+      <input type="time" id="s_${j.value}_ad" value="${s.aprem_debut}" class="px-2 py-1 border rounded text-sm">
+      <input type="time" id="s_${j.value}_af" value="${s.aprem_fin}" class="px-2 py-1 border rounded text-sm">
+    </div>`;
+  });
+}
+
+async function saveSchedule() {
+  const entries = [];
+  JOURS.forEach(j => {
+    entries.push({
+      jour: j.value,
+      matin_debut: document.getElementById(`s_${j.value}_md`).value,
+      matin_fin: document.getElementById(`s_${j.value}_mf`).value,
+      aprem_debut: document.getElementById(`s_${j.value}_ad`).value,
+      aprem_fin: document.getElementById(`s_${j.value}_af`).value
+    });
+  });
+  await fetch(`${API}/admin/employees/${curEmpId}/schedule/?creche=${encodeURIComponent(curCreche)}`, {method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify(entries)});
+  alert("Emploi du temps enregistré !");
+  openDetail(curEmpId);
+}
+
+function changeMonth() {
+  const [y, m] = document.getElementById("monthPicker").value.split("-");
+  currentYear = parseInt(y); currentMonth = parseInt(m);
+  loadDashboard();
+}
+
+function changeDetailMonth() {
+  const [y, m] = document.getElementById("detailMonthPicker").value.split("-");
+  currentYear = parseInt(y); currentMonth = parseInt(m);
+  openDetail(curEmpId);
+}
+
+async function openBdd() {
+  const [cr, er] = await Promise.all([fetch(`${API}/admin/db/creches`).then(r=>r.json()), fetch(`${API}/admin/db/employees`).then(r=>r.json())]);
+  dbCreches = cr; dbEmps = er;
+  document.getElementById("crechesRows").innerHTML = dbCreches.map(c=>`<tr><td class="px-6 py-4">${c.nom}</td><td class="px-6 py-4 font-mono">${c.password}</td><td class="px-6 py-4 text-right"></td></tr>`).join("");
+  document.getElementById("empsRows").innerHTML = dbEmps.map(e=>`<tr><td class="px-6 py-4">${e.nom}</td><td class="px-6 py-4">${e.prenom}</td><td class="px-6 py-4">${e.role}</td><td class="px-6 py-4">${e.creches.join(", ")}</td><td class="px-6 py-4 text-right"></td></tr>`).join("");
+  showScreen("bddScreen");
+}
+
+async function seedDb() {
+  const r = await fetch(`${API}/admin/seed`, {method:"POST"});
+  const d = await r.json();
+  alert(d.message || "Fait");
+  openBdd();
+}
+</script>
+</body>
+</html>
