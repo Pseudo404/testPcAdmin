@@ -202,8 +202,11 @@ function showScreen(id) {
   ["loginScreen","crechesScreen","employeesScreen","detailScreen","bddScreen"].forEach(s => document.getElementById(s).classList.add("hidden"));
   document.getElementById(id).classList.remove("hidden");
   document.getElementById("hdr").classList.toggle("hidden", id==="loginScreen");
-  document.getElementById("hdrCreche").classList.toggle("hidden", id!=="employeesScreen" && id!=="detailScreen");
-  if(id==="employeesScreen" || id==="detailScreen") document.getElementById("hdrCrecheinnerText = curCreche;
+  const hdrCreche = document.getElementById("hdrCreche");
+  hdrCreche.classList.toggle("hidden", id!=="employeesScreen" && id!=="detailScreen");
+  if(id==="employeesScreen" || id==="detailScreen") {
+    hdrCreche.innerText = curCreche;
+  }
 }
 
 function formatMinutes(mins) {
