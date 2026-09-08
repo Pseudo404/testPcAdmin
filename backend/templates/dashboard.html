@@ -60,7 +60,7 @@
     </div>
     <input type="month" id="monthPicker" onchange="changeMonth()" class="px-4 py-2 bg-white border border-slate-300 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-purple-500 text-sm">
   </div>
-  <div id="crecheCards" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6"></div>
+  <div id="crecheCards" class="grid grid-cols-1 md:grid-cols-2 gap-8 max-w-5xl mx-auto"></div>
 </div>
 
 <!-- ─── EMPLOYÉES (Vue liste par crèche) ─── -->
@@ -276,16 +276,16 @@ async function loadDashboard() {
       const isEnabled = crecheStatuses[c] === true;
       const displayName = formatCrecheName(c);
       
-      cont.innerHTML += `<div onclick="openCreche('${c}')" class="bg-white rounded-2xl p-6 cursor-pointer border border-slate-200 hover:border-purple-300 transition-all shadow-sm flex flex-col justify-between">
+      cont.innerHTML += `<div onclick="openCreche('${c}')" class="bg-white rounded-3xl p-8 cursor-pointer border-2 border-slate-200 hover:border-purple-400 transition-all shadow-md flex flex-col justify-between">
         <div>
-          <div class="flex justify-between items-start mb-2">
-            <h3 class="text-xl font-bold text-slate-800">🏢 ${displayName}</h3>
-            <span class="px-2.5 py-1 rounded-full text-xs font-bold ${isEnabled ? 'bg-emerald-100 text-emerald-700' : 'bg-rose-100 text-rose-700'}">
+          <div class="flex justify-between items-start mb-4">
+            <h3 class="text-2xl font-bold text-slate-800">🏢 ${displayName}</h3>
+            <span class="px-3 py-1.5 rounded-full text-sm font-bold ${isEnabled ? 'bg-emerald-100 text-emerald-700' : 'bg-rose-100 text-rose-700'}">
               ${isEnabled ? '● Activé' : '● Désactivé'}
             </span>
           </div>
-          <p class="text-sm text-slate-600 flex justify-between mt-4"><span>Employés :</span><span class="font-semibold">${emps.length}</span></p>
-          <p class="text-sm text-slate-600 flex justify-between mt-1"><span>Heures (mois) :</span><span class="font-semibold">${Math.floor(tw/60)}h</span></p>
+          <p class="text-base text-slate-600 flex justify-between mt-6"><span>Employés :</span><span class="font-bold text-lg">${emps.length}</span></p>
+          <p class="text-base text-slate-600 flex justify-between mt-2"><span>Heures (mois) :</span><span class="font-bold text-lg">${Math.floor(tw/60)}h</span></p>
         </div>
       </div>`;
     });
