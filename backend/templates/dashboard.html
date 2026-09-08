@@ -328,14 +328,14 @@ async function openCreche(c) {
   const emps = allEmps.filter(e => e.creche_nom === c);
   const tb = document.getElementById("empRows"); tb.innerHTML = "";
   
-  emps.forEach(emp => {
-    const isPos = emp.diff_minutes >= 0;
-    tb.innerHTML += `<tr class="hover:bg-slate-50">
+ emps.forEach(emp => {
+  const isPos = emp.diff_minutes >= 0;
+  tb.innerHTML += `<tr class="hover:bg-slate-50">
       <td class="px-6 py-4 font-medium text-slate-800">${emp.prenom} ${emp.nom}</td>
       <td class="px-6 py-4 text-slate-600">${emp.heures_jour_contrat} h/jour</td>
       <td class="px-6 py-4 text-slate-600">${Math.floor(emp.total_contract_minutes/60)}h</td>
       <td class="px-6 py-4 text-slate-600">${Math.floor(emp.total_worked_minutes/60)}h${(emp.total_worked_minutes%60).toString().padStart(2,"0")}</td>
-      <td class="px-6 py-4">${emp.total_worked_minutes>0?`<span class="px-2.5 py-0.5 rounded-full text-xs font-bold ${isPos?"bg-emerald-100 text-emerald-700":"bg-rose-100 text-rose-700"}">${formatMinutes(emp.diff_minutes)}</span>`:"–"}</td>
+      <td class="px-6 py-4"><span class="px-2.5 py-0.5 rounded-full text-xs font-bold ${isPos ? "bg-emerald-100 text-emerald-700" : "bg-rose-100 text-rose-700"}">${formatMinutes(emp.diff_minutes)}</span></td>
       <td class="px-6 py-4 text-right"><button onclick="openDetail('${emp.id}')" class="px-4 py-2 bg-purple-50 text-purple-700 border border-purple-200 rounded-lg text-sm font-medium hover:bg-purple-100">Voir le pointage</button></td>
     </tr>`;
   });
@@ -352,7 +352,15 @@ async function openDetail(id) {
   document.getElementById("detailSubtitle").innerText = tRes.has_schedule ? "Emploi du temps personnalisé actif" : `Forfait : ${tRes.heures_jour_contrat} h/jour`;
   document.getElementById("statWorked").innerText = `${Math.floor(tRes.total_worked_minutes/60)}h${(tRes.total_worked_minutes%60).toString().padStart(2,"0")}`;
   document.getElementById("statContract").innerText = `${Math.floor(tRes.total_contract_minutes/60)}h${(tRes.total_contract_minutes%60).toString().padStart(2,"0")}`;
-  document.getElementById("statDiff").innerText = formatMinutes(tRes.total_diff_minutes);
+  
+  // Correction de la couleur du solde (Vert si positif/nul, Rouge si négatif)
+  const isPosTotal = tRes.total_diff_minutes >= 0;
+  const diffBox = document.getElementById("statDiffBox");
+  diffBox.className = `p-6 rounded-2xl shadow-sm border ${isPosTotal ? "bg-emerald-50 border-emerald-200" : "bg-rose-50 border-rose-200"}`;
+  document.getElementById("statDiffTitle").className = `text-sm font-medium mb-1 ${isPosTotal ? "text-emerald-700" : "text-rose-700"}`;
+  const statDiffEl = document.getElementById("statDiff");
+  statDiffEl.className = `text-2xl font-bold ${isPosTotal ? "text-emerald-600" : "text-rose-600"}`;
+  statDiffEl.innerText = formatMinutes(tRes.total_diff_minutes);
   
   const tb = document.getElementById("dailyRows"); tb.innerHTML = "";
   tRes.daily.forEach(d => {
