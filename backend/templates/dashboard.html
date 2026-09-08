@@ -12,7 +12,7 @@
 </head>
 <body class="min-h-screen text-slate-800 flex flex-col">
 
-<!-- HEADER (Inspiré de /admin/layout.tsx) -->
+<!-- HEADER -->
 <header id="hdr" class="hidden bg-purple-700 text-white shadow-md p-4 flex justify-between items-center sticky top-0 z-40">
   <div class="flex items-center gap-4">
     <button onclick="goHome()" class="text-xl font-bold flex items-center gap-2 hover:opacity-80 transition-opacity">
@@ -21,7 +21,6 @@
     <span id="hdrCreche" class="hidden text-purple-200 text-sm font-medium bg-purple-800/60 px-3 py-1 rounded-lg"></span>
   </div>
   <div class="flex items-center gap-3">
-    <button id="timeclockBtn" onclick="toggleTimeclock()" class="text-xs bg-slate-800 hover:bg-slate-700 text-white px-3.5 py-2 rounded-lg font-semibold transition-colors">◌ Pointeuse</button>
     <button onclick="openBdd()" class="text-xs bg-amber-500 hover:bg-amber-400 text-white px-3.5 py-2 rounded-lg font-semibold transition-colors">🗄️ BDD</button>
     <button onclick="logout()" class="text-purple-100 hover:text-white px-4 py-2 rounded-lg hover:bg-purple-600 transition-colors text-sm">Déconnexion</button>
   </div>
@@ -52,23 +51,23 @@
   </div>
 </div>
 
-<!-- ─── DASHBOARD / CRÈCHES (Inspiré de /admin/dashboard/page.tsx) ─── -->
+<!-- ─── DASHBOARD / CRÈCHES ─── -->
 <div id="crechesScreen" class="hidden">
   <div class="flex flex-col md:flex-row justify-between items-start md:items-end mb-8 gap-4">
     <div>
       <h1 class="text-3xl font-bold text-slate-800 mb-2">Tableau de bord</h1>
-      <p class="text-slate-500">Sélectionnez une crèche pour gérer les employés</p>
+      <p class="text-slate-500">Sélectionnez une crèche pour gérer les employés et consulter l'état des pointeuses</p>
     </div>
     <input type="month" id="monthPicker" onchange="changeMonth()" class="px-4 py-2 bg-white border border-slate-300 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-purple-500 text-sm">
   </div>
-  <div id="timeclockNotice" class="hidden mb-6 rounded-2xl border px-5 py-4 text-sm"></div>
   <div id="crecheCards" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6"></div>
 </div>
 
 <!-- ─── EMPLOYÉES (Vue liste par crèche) ─── -->
 <div id="employeesScreen" class="hidden">
-  <div class="mb-6">
+  <div class="mb-6 flex justify-between items-center">
     <button onclick="goHome()" class="text-purple-600 hover:underline font-medium flex items-center gap-1 text-sm">← Retour aux crèches</button>
+    <div id="crecheStatusToggleContainer"></div>
   </div>
   <div class="flex justify-between items-center mb-6">
     <h2 id="empTitle" class="text-2xl font-bold text-slate-800">Employés</h2>
@@ -90,7 +89,7 @@
   </div>
 </div>
 
-<!-- ─── DÉTAIL EMPLOYÉE (Inspiré de /admin/employee/[id]/page.tsx) ─── -->
+<!-- ─── DÉTAIL EMPLOYÉE ─── -->
 <div id="detailScreen" class="hidden">
   <div class="mb-6">
     <button onclick="openCreche(curCreche)" class="text-purple-600 hover:underline font-medium text-sm">← Retour aux employés</button>
@@ -103,7 +102,6 @@
     <input type="month" id="detailMonthPicker" onchange="changeDetailMonth()" class="px-4 py-2 bg-white border border-slate-300 rounded-lg shadow-sm focus:ring-2 focus:ring-purple-500 text-sm">
   </div>
 
-  <!-- Cartes de Synthèse -->
   <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
     <div class="bg-white p-6 rounded-2xl shadow-sm border border-slate-200">
       <div class="text-sm font-medium text-slate-500 mb-1">Heures Travaillées (Mois)</div>
@@ -119,14 +117,12 @@
     </div>
   </div>
 
-  <!-- Onglets de Navigation Détail -->
   <div class="flex border-b border-slate-200 mb-6">
     <button onclick="switchDetailTab('time')" id="btn-tab-time" class="px-6 py-3 font-medium text-sm border-b-2 border-purple-600 text-purple-600 transition-colors">Calcul des Heures</button>
     <button onclick="switchDetailTab('schedule')" id="btn-tab-schedule" class="px-6 py-3 font-medium text-sm border-b-2 border-transparent text-slate-500 hover:text-slate-700 transition-colors">📅 Emploi du Temps</button>
     <button onclick="switchDetailTab('signatures')" id="btn-tab-signatures" class="px-6 py-3 font-medium text-sm border-b-2 border-transparent text-slate-500 hover:text-slate-700 transition-colors">Contrôle des Signatures</button>
   </div>
 
-  <!-- Onglet 1 : Calcul des Heures -->
   <div id="tab-time" class="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
     <table class="w-full text-left border-collapse text-sm">
       <thead>
@@ -142,7 +138,6 @@
     </table>
   </div>
 
-  <!-- Onglet 2 : Emploi du Temps Hebdomadaire -->
   <div id="tab-schedule" class="hidden bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden p-6">
     <div class="flex justify-between items-center mb-6">
       <div>
@@ -154,7 +149,6 @@
     <div id="scheduleRows" class="space-y-3"></div>
   </div>
 
-  <!-- Onglet 3 : Contrôle des Signatures -->
   <div id="tab-signatures" class="hidden grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6"></div>
 </div>
 
@@ -194,8 +188,8 @@
 <script>
 const API = "http://127.0.0.1:8000";
 const JOURS = [{label:"Lundi",value:0},{label:"Mardi",value:1},{label:"Mercredi",value:2},{label:"Jeudi",value:3},{label:"Vendredi",value:4},{label:"Samedi",value:5},{label:"Dimanche",value:6}];
-let allEmps = [], dbCreches = [], dbEmps = [];
-let curCreche = "", curEmpId = "", timeclockIsEnabled = false;
+let allEmps = [], dbCreches = [], dbEmps = [], crecheStatuses = {};
+let curCreche = "", curEmpId = "";
 let currentMonth = new Date().getMonth()+1, currentYear = new Date().getFullYear();
 
 function showScreen(id) {
@@ -243,9 +237,24 @@ function logout() { localStorage.removeItem("admin_logged_in"); showScreen("logi
 function goHome() { loadDashboard(); }
 
 async function loadDashboard() {
-  const r = await fetch(`${API}/admin/employees/?month=${currentMonth}&year=${currentYear}`);
-  allEmps = await r.json();
-  const creches = Array.from(new Set(allEmps.map(e => e.creche_nom)));
+  const [empRes, dbCrechesRes] = await Promise.all([
+    fetch(`${API}/admin/employees/?month=${currentMonth}&year=${currentYear}`).then(r => r.json()),
+    fetch(`${API}/admin/db/creches`).then(r => r.json())
+  ]);
+  allEmps = empRes;
+
+  // Récupérer l'état de la pointeuse pour chaque crèche
+  crecheStatuses = {};
+  for (let c of dbCrechesRes) {
+    try {
+      const stRes = await fetch(`${API}/admin/settings/timeclock?creche=${encodeURIComponent(c.nom)}`).then(r => r.json());
+      crecheStatuses[c.nom] = Boolean(stRes.enabled);
+    } catch {
+      crecheStatuses[c.nom] = false;
+    }
+  }
+
+  const creches = Array.from(new Set(dbCrechesRes.map(c => c.nom)));
   const cont = document.getElementById("crecheCards"); cont.innerHTML = "";
   
   if(!creches.length) {
@@ -254,20 +263,68 @@ async function loadDashboard() {
     creches.forEach(c => {
       const emps = allEmps.filter(e => e.creche_nom === c);
       const tw = emps.reduce((a,e)=>a+e.total_worked_minutes,0);
-      cont.innerHTML += `<div onclick="openCreche('${c}')" class="bg-white rounded-2xl p-6 cursor-pointer border border-slate-200 hover:border-purple-300 transition-all shadow-sm">
-        <h3 class="text-xl font-bold text-slate-800 mb-4">🏢 ${c}</h3>
-        <p class="text-sm text-slate-600 flex justify-between"><span>Employés :</span><span class="font-semibold">${emps.length}</span></p>
-        <p class="text-sm text-slate-600 flex justify-between mt-1"><span>Heures (mois) :</span><span class="font-semibold">${Math.floor(tw/60)}h</span></p>
+      const isEnabled = crecheStatuses[c] === true;
+      
+      cont.innerHTML += `<div onclick="openCreche('${c}')" class="bg-white rounded-2xl p-6 cursor-pointer border border-slate-200 hover:border-purple-300 transition-all shadow-sm flex flex-col justify-between">
+        <div>
+          <div class="flex justify-between items-start mb-2">
+            <h3 class="text-xl font-bold text-slate-800">🏢 ${c}</h3>
+            <span class="px-2.5 py-1 rounded-full text-xs font-bold ${isEnabled ? 'bg-emerald-100 text-emerald-700' : 'bg-rose-100 text-rose-700'}">
+              ${isEnabled ? '● Activé' : '● Désactivé'}
+            </span>
+          </div>
+          <p class="text-sm text-slate-600 flex justify-between mt-4"><span>Employés :</span><span class="font-semibold">${emps.length}</span></p>
+          <p class="text-sm text-slate-600 flex justify-between mt-1"><span>Heures (mois) :</span><span class="font-semibold">${Math.floor(tw/60)}h</span></p>
+        </div>
       </div>`;
     });
   }
   showScreen("crechesScreen");
 }
 
-function openCreche(c) {
+async function toggleCrecheTimeclock(crecheName) {
+  const currentState = crecheStatuses[crecheName] === true;
+  const newState = !currentState;
+  try {
+    const r = await fetch(`${API}/admin/settings/timeclock`, {
+      method: "PUT",
+      headers: {"Content-Type": "application/json"},
+      body: JSON.stringify({ enabled: newState, creche: crecheName })
+    });
+    if(!r.ok) throw new Error("Erreur lors de la mise à jour");
+    crecheStatuses[crecheName] = newState;
+    renderCrecheHeaderToggle(crecheName);
+  } catch(ex) {
+    alert("Impossible de modifier le statut de la pointeuse.");
+  }
+}
+
+function renderCrecheHeaderToggle(crecheName) {
+  const isEnabled = crecheStatuses[crecheName] === true;
+  const container = document.getElementById("crecheStatusToggleContainer");
+  container.innerHTML = `
+    <button onclick="toggleCrecheTimeclock('${crecheName}')" class="px-4 py-2 rounded-xl text-xs font-bold shadow-sm transition-colors border ${
+      isEnabled 
+        ? 'bg-emerald-50 text-emerald-700 border-emerald-300 hover:bg-emerald-100' 
+        : 'bg-rose-50 text-rose-700 border-rose-300 hover:bg-rose-100'
+    }">
+      Pointeuse : ${isEnabled ? 'Activée (Cliquer pour désactiver)' : 'Désactivée (Cliquer pour activer)'}
+    </button>
+  `;
+}
+
+async function openCreche(c) {
   curCreche = c;
   document.getElementById("empTitle").innerText = `Employés - ${c}`;
   document.getElementById("hdrCreche").innerText = c;
+  
+  // S'assurer d'avoir l'état de la crèche à jour
+  try {
+    const stRes = await fetch(`${API}/admin/settings/timeclock?creche=${encodeURIComponent(c)}`).then(r => r.json());
+    crecheStatuses[c] = Boolean(stRes.enabled);
+  } catch {}
+  renderCrecheHeaderToggle(c);
+
   const emps = allEmps.filter(e => e.creche_nom === c);
   const tb = document.getElementById("empRows"); tb.innerHTML = "";
   
