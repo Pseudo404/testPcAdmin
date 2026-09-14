@@ -76,6 +76,16 @@ class TimeclockState(Base):
     changed_at = Column(String, nullable=False)
     creche_nom = Column(String, index=True, nullable=True)
 
+class BalanceAdjustment(Base):
+    """Ajustements manuels du solde d'heures par la directrice."""
+    __tablename__ = "balance_adjustments"
+    id = Column(Integer, primary_key=True, index=True)
+    employee_id = Column(String, index=True)
+    creche_nom = Column(String, index=True)
+    minutes = Column(Integer, nullable=False)
+    reason = Column(String, default="")
+    created_at = Column(String, nullable=False)
+
 Base.metadata.create_all(bind=engine)
 
 # Migration automatique : ajoute les colonnes des versions précédentes.
@@ -90,7 +100,7 @@ def _migrate():
             cols = [c["name"] for c in insp.get_columns("employee_schedules")]
             if "no_pointage" not in cols:
                 conn.execute(text("ALTER TABLE employee_schedules ADD COLUMN no_pointage INTEGER NOT NULL DEFAULT 0"))
-                if "schedule_exceptions" in insp.get_table_names():
+        if "schedule_exceptions" in insp.get_table_names():
             cols = [c["name"] for c in insp.get_columns("schedule_exceptions")]
             if "cumuler" not in cols:
                 conn.execute(text("ALTER TABLE schedule_exceptions ADD COLUMN cumuler INTEGER NOT NULL DEFAULT 0"))

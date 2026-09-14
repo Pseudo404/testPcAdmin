@@ -141,50 +141,7 @@ def contract_minutes_for_day(db: Session, employee_id: str, creche: str, schedul
     return sum(end - start for start, end in intervals)
 
 
-def extract_intervals(sched):
-    intervals = []
-    if sched and not sched.no_pointage:
-        if sched.matin_debut and sched.matin_fin:
-            sh = int(sched.matin_debut[:2])*60 + int(sched.matin_debut[3:])
-            eh = int(sched.matin_fin[:2])*60 + int(sched.matin_fin[3:])
-            if eh > sh: intervals.append([sh, eh])
-        if sched.aprem_debut and sched.aprem_fin:
-            sh = int(sched.aprem_debut[:2])*60 + int(sched.aprem_debut[3:])
-            eh = int(sched.aprem_fin[:2])*60 + int(sched.aprem_fin[3:])
-            if eh > sh: intervals.append([sh, eh])
-    return intervals
 
-def merge_intervals(intervals):
-    if not intervals: return []
-    intervals.sort(key=lambda x: x[0])
-    merged = [intervals[0]]
-    for current in intervals[1:]:
-        previous = merged[-1]
-        if current[0] <= previous[1]:
-            previous[1] = max(previous[1], current[1])
-        else:
-            merged.append(current)
-    return merged
-
-def get_effective_intervals(db, employee_id, creche, schedules, day_date):
-    normal_sched = {s.jour: s for s in schedules}.get(day_date.weekday())
-    exc = exception_for(db, employee_id, creche, day_date)
-    if not exc:
-        return merge_intervals(extract_intervals(normal_sched))
-    
-    exc_intervals = extract_intervals(exc)
-    cumuler = getattr(exc, 'cumuler', 0)
-    if cumuler:
-        normal_intervals = extract_intervals(normal_sched)
-        return merge_intervals(normal_intervals + exc_intervals)
-    else:
-        return merge_intervals(exc_intervals)
-
-def contract_minutes_for_day(db: Session, employee_id: str, creche: str, schedules, day: datetime.date) -> int:
-    if not timeclock_enabled_on(db, day, creche):
-        return 0
-    intervals = get_effective_intervals(db, employee_id, creche, schedules, day)
-    return sum(end - start for start, end in intervals)
 
 def get_break_overlap(arr: str, dep: str, intervals) -> int:
     if not arr or not dep or len(intervals) < 2:
@@ -345,11 +302,18 @@ def admin_get_employees(month: int, year: int, db: Session = Depends(database.ge
                 
         contract = month_contract_minutes(scheds, month, year, db, emp.id, a.creche_nom)
         first_schedule = next((s for s in sorted(scheds, key=lambda row: row.jour) if not s.no_pointage and (s.matin_debut or s.aprem_debut)), None)
+        
+        adj_q = db.query(database.BalanceAdjustment).filter(
+            database.BalanceAdjustment.employee_id == emp.id,
+            database.BalanceAdjustment.creche_nom == a.creche_nom
+        )
+        total_adj = sum(adj.minutes for adj in adj_q.all())
+
         result.append({"id": emp.id, "nom": emp.nom, "prenom": emp.prenom, "role": emp.role or "",
             "creche_nom": a.creche_nom,
             "start_time": (first_schedule.matin_debut or first_schedule.aprem_debut) if first_schedule else "",
             "heures_jour_contrat": str(round((week_mins/5)/60, 1)) if week_mins else "0",
-            "total_worked_minutes": worked, "total_contract_minutes": contract, "diff_minutes": worked - contract})
+            "total_worked_minutes": worked, "total_contract_minutes": contract, "diff_minutes": worked - contract + total_adj})
     return result
 
 @app.get("/admin/employees/{id}/time/")
@@ -389,8 +353,13 @@ def admin_time(id: str, month: int, year: int, creche: str = "", db: Session = D
             daily.append({"date": d_str, "worked_minutes": wm, "contract_minutes": cm, "diff_minutes": wm-cm, "is_complete": ic, "events_count": len(evts)})
             day += datetime.timedelta(days=1)
             
+    # Include adjustments in total_diff_minutes
+    adj_q = db.query(database.BalanceAdjustment).filter(database.BalanceAdjustment.employee_id == id)
+    if creche: adj_q = adj_q.filter(database.BalanceAdjustment.creche_nom == creche)
+    total_adj = sum(a.minutes for a in adj_q.all())
+
     return {"employee_id": id, "has_schedule": bool(sched), "month": month, "year": year, "daily": daily,
-            "total_worked_minutes": tw, "total_contract_minutes": tc, "total_diff_minutes": tw-tc}
+            "total_worked_minutes": tw, "total_contract_minutes": tc, "total_diff_minutes": tw-tc + total_adj, "total_adj_minutes": total_adj}
 
 @app.get("/admin/employees/{id}/emargements/")
 def admin_emarges(id: str, month: int, year: int, creche: str = "", db: Session = Depends(database.get_db)):
@@ -480,13 +449,54 @@ def employee_balance(id: str, creche: str, db: Session = Depends(database.get_db
         arr = day_events.get("ARRIVEE", "")
         dep = day_events.get("DEPART", "")
         intervals = get_effective_intervals(db, id, creche, schedules, day)
-        worked = max(0, calc(arr, dep) - get_break_overlap(arr, dep, eff_sched)) if arr and dep else 0
-        
+        worked = max(0, calc(arr, dep) - get_break_overlap(arr, dep, intervals)) if arr and dep else 0
         balance += worked - contract_minutes_for_day(db, id, creche, schedules, day)
         if balance < 0: balance = 0
     return {"diff_minutes": balance}
 
-# ── BDD : gestion crèches ──────────────────────────────────────────────────────
+class BalanceAdjustment(BaseModel):
+    minutes: int  # Positif = ajouter, négatif = retirer; 0 = remettre à zéro
+    reason: str = ""
+
+@app.post("/admin/employees/{id}/balance/adjust")
+def admin_adjust_balance(id: str, req: BalanceAdjustment, creche: str = "", db: Session = Depends(database.get_db)):
+    """
+    Permet à la directrice d'insérer un ajustement de solde pour un employé.
+    Un ajustement de 0 remet le compteur à zéro (supprime tous les ajustements précédents).
+    """
+    if req.minutes == 0:
+        # Supprimer tous les ajustements existants pour cet employé/crèche
+        db.query(database.BalanceAdjustment).filter(
+            database.BalanceAdjustment.employee_id == id,
+            database.BalanceAdjustment.creche_nom == creche
+        ).delete()
+    else:
+        db.add(database.BalanceAdjustment(
+            employee_id=id,
+            creche_nom=creche,
+            minutes=req.minutes,
+            reason=req.reason.strip(),
+            created_at=datetime.datetime.now().isoformat(timespec="seconds")
+        ))
+    db.commit()
+    return {"status": "ok"}
+
+@app.get("/admin/employees/{id}/balance/adjustments")
+def admin_get_adjustments(id: str, creche: str = "", db: Session = Depends(database.get_db)):
+    q = db.query(database.BalanceAdjustment).filter(database.BalanceAdjustment.employee_id == id)
+    if creche: q = q.filter(database.BalanceAdjustment.creche_nom == creche)
+    return [{"id": a.id, "minutes": a.minutes, "reason": a.reason, "created_at": a.created_at}
+            for a in q.order_by(database.BalanceAdjustment.id.asc()).all()]
+
+@app.delete("/admin/employees/{id}/balance/adjustments/{adj_id}")
+def admin_delete_adjustment(id: str, adj_id: int, db: Session = Depends(database.get_db)):
+    db.query(database.BalanceAdjustment).filter(
+        database.BalanceAdjustment.id == adj_id,
+        database.BalanceAdjustment.employee_id == id
+    ).delete()
+    db.commit()
+    return {"status": "ok"}
+
 
 @app.get("/admin/db/creches")
 def db_creches(db: Session = Depends(database.get_db)):
