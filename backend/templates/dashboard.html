@@ -120,6 +120,8 @@
   <div class="flex border-b border-slate-200 mb-6">
     <button onclick="switchDetailTab('time')" id="btn-tab-time" class="px-6 py-3 font-medium text-sm border-b-2 border-purple-600 text-purple-600 transition-colors">Calcul des Heures</button>
     <button onclick="switchDetailTab('schedule')" id="btn-tab-schedule" class="px-6 py-3 font-medium text-sm border-b-2 border-transparent text-slate-500 hover:text-slate-700 transition-colors">📅 Emploi du Temps</button>
+    <button onclick="switchDetailTab('exceptions')" id="btn-tab-exceptions" class="px-6 py-3 font-medium text-sm border-b-2 border-transparent text-slate-500 hover:text-slate-700 transition-colors">⭐ Jours Personnalisés</button>
+    <button onclick="switchDetailTab('balance')" id="btn-tab-balance" class="px-6 py-3 font-medium text-sm border-b-2 border-transparent text-slate-500 hover:text-slate-700 transition-colors">💰 Ajustement Solde</button>
     <button onclick="switchDetailTab('signatures')" id="btn-tab-signatures" class="px-6 py-3 font-medium text-sm border-b-2 border-transparent text-slate-500 hover:text-slate-700 transition-colors">Contrôle des Signatures</button>
   </div>
 
@@ -147,6 +149,77 @@
       <button onclick="saveSchedule()" class="px-5 py-2 bg-purple-600 text-white rounded-lg text-sm font-semibold hover:bg-purple-700 transition-colors">Enregistrer</button>
     </div>
     <div id="scheduleRows" class="space-y-3"></div>
+  </div>
+
+  <!-- ── JOURS PERSONNALISÉS ─────────────────────────────────────── -->
+  <div id="tab-exceptions" class="hidden bg-white rounded-2xl shadow-sm border border-slate-200 p-6">
+    <h3 class="text-lg font-bold text-slate-800 mb-4">Ajouter un jour personnalisé</h3>
+    <form onsubmit="addException(event)" class="grid grid-cols-1 md:grid-cols-2 gap-4 bg-slate-50 p-4 rounded-xl mb-8 border border-slate-100">
+      <div>
+        <label class="block text-sm font-medium text-slate-700 mb-1">Date</label>
+        <input type="date" id="exc_date" required class="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm">
+      </div>
+      <div>
+        <label class="block text-sm font-medium text-slate-700 mb-1">Libellé (ex: Réunion, Formation)</label>
+        <input type="text" id="exc_label" value="Journée exceptionnelle" class="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm">
+      </div>
+      <div>
+        <label class="block text-sm font-medium text-slate-700 mb-1">Matin – Début</label>
+        <input type="time" id="exc_md" class="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm">
+      </div>
+      <div>
+        <label class="block text-sm font-medium text-slate-700 mb-1">Matin – Fin</label>
+        <input type="time" id="exc_mf" class="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm">
+      </div>
+      <div>
+        <label class="block text-sm font-medium text-slate-700 mb-1">Après-midi – Début</label>
+        <input type="time" id="exc_ad" class="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm">
+      </div>
+      <div>
+        <label class="block text-sm font-medium text-slate-700 mb-1">Après-midi – Fin</label>
+        <input type="time" id="exc_af" class="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm">
+      </div>
+      <div class="md:col-span-2 flex items-center mt-2 gap-3">
+        <input type="checkbox" id="exc_cumuler" class="w-5 h-5 text-purple-600 border-slate-300 rounded">
+        <label for="exc_cumuler" class="text-sm font-medium text-slate-800">Cumuler avec l'horaire habituel (ex: réunion en soirée). Si non coché, remplace complètement la journée.</label>
+      </div>
+      <div class="md:col-span-2 mt-2">
+        <button type="submit" class="px-6 py-2 bg-purple-600 text-white font-semibold rounded-lg hover:bg-purple-700 transition-colors text-sm">Ajouter</button>
+      </div>
+    </form>
+
+    <h3 class="text-lg font-bold text-slate-800 mb-4">Jours personnalisés enregistrés</h3>
+    <div id="exceptionsTable"><p class="text-slate-400 text-sm">Aucun jour personnalisé.</p></div>
+  </div>
+
+  <!-- ── AJUSTEMENT SOLDE ─────────────────────────────────────────── -->
+  <div id="tab-balance" class="hidden bg-white rounded-2xl shadow-sm border border-slate-200 p-6">
+    <h3 class="text-lg font-bold text-slate-800 mb-2">Ajustement manuel du solde</h3>
+    <p class="text-sm text-slate-500 mb-5">Permet de corriger les heures négatives ou d'ajouter des heures supplémentaires manuellement.</p>
+    <form onsubmit="addAdjustment(event)" class="flex flex-col sm:flex-row gap-3 mb-6 bg-slate-50 p-4 rounded-xl border border-slate-100 items-end">
+      <div>
+        <label class="block text-sm font-medium text-slate-700 mb-1">Action</label>
+        <select id="adj_direction" class="px-3 py-2 border border-slate-300 rounded-lg bg-white text-sm">
+          <option value="plus">Ajouter (+)</option>
+          <option value="minus">Retirer (-)</option>
+        </select>
+      </div>
+      <div>
+        <label class="block text-sm font-medium text-slate-700 mb-1">Heures</label>
+        <input type="number" id="adj_hours" min="0" placeholder="ex: 2" class="w-24 px-3 py-2 border border-slate-300 rounded-lg text-sm">
+      </div>
+      <div>
+        <label class="block text-sm font-medium text-slate-700 mb-1">Minutes</label>
+        <input type="number" id="adj_mins" min="0" max="59" placeholder="ex: 30" class="w-24 px-3 py-2 border border-slate-300 rounded-lg text-sm">
+      </div>
+      <div class="flex-1">
+        <label class="block text-sm font-medium text-slate-700 mb-1">Motif (optionnel)</label>
+        <input type="text" id="adj_reason" placeholder="ex: Régularisation heures négatives" class="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm">
+      </div>
+      <button type="submit" class="px-6 py-2 bg-blue-600 text-white font-semibold rounded-lg hover:bg-blue-700 transition-colors text-sm h-[38px]">Valider</button>
+      <button type="button" onclick="clearAllAdjustments()" class="px-4 py-2 bg-rose-100 text-rose-700 font-semibold rounded-lg hover:bg-rose-200 transition-colors text-sm h-[38px]" title="Supprime tous les ajustements">Tout Effacer</button>
+    </form>
+    <div id="adjustmentsTable"><p class="text-slate-400 text-sm">Aucun ajustement enregistré.</p></div>
   </div>
 
   <div id="tab-signatures" class="hidden grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6"></div>
@@ -429,12 +502,14 @@ async function openDetail(id) {
   });
 
   await loadScheduleTab();
+  await loadExceptionsTab();
+  await loadAdjustmentsTab();
   switchDetailTab('time');
   showScreen("detailScreen");
 }
 
 function switchDetailTab(tab) {
-  ["time","schedule","signatures"].forEach(t => {
+  ["time","schedule","exceptions","balance","signatures"].forEach(t => {
     document.getElementById("tab-"+t).classList.toggle("hidden", t!==tab);
     document.getElementById("btn-tab-"+t).className = `px-6 py-3 font-medium text-sm border-b-2 transition-colors ${t===tab?"border-purple-600 text-purple-600":"border-transparent text-slate-500 hover:text-slate-700"}`;
   });
@@ -498,6 +573,146 @@ async function seedDb() {
   const d = await r.json();
   alert(d.message || "Fait");
   openBdd();
+}
+
+// ─── JOURS PERSONNALISÉS ────────────────────────────────────────────────────
+
+async function loadExceptionsTab() {
+  const data = await fetch(`${API}/admin/employees/${curEmpId}/exceptions/?creche=${encodeURIComponent(curCreche)}`).then(r => r.json());
+  renderExceptions(data);
+}
+
+function renderExceptions(data) {
+  const el = document.getElementById("exceptionsTable");
+  if (!data.length) { el.innerHTML = '<p class="text-slate-400 text-sm">Aucun jour personnalisé.</p>'; return; }
+  el.innerHTML = `<div class="overflow-x-auto"><table class="w-full text-left border-collapse text-sm">
+    <thead><tr class="bg-slate-50 border-b border-slate-200 text-slate-500 uppercase text-xs font-semibold">
+      <th class="px-4 py-3">Date</th><th class="px-4 py-3">Libellé</th>
+      <th class="px-4 py-3">Horaires</th><th class="px-4 py-3">Mode</th>
+      <th class="px-4 py-3 text-right">Action</th>
+    </tr></thead>
+    <tbody class="divide-y divide-slate-100">
+    ${data.map(exc => `<tr class="hover:bg-slate-50">
+      <td class="px-4 py-3 font-medium">${exc.date}</td>
+      <td class="px-4 py-3 text-slate-600">${exc.label || ''}</td>
+      <td class="px-4 py-3 text-slate-600 text-xs">${(exc.matin_debut && exc.matin_fin ? exc.matin_debut+'-'+exc.matin_fin+' ' : '') + (exc.aprem_debut && exc.aprem_fin ? exc.aprem_debut+'-'+exc.aprem_fin : '')}</td>
+      <td class="px-4 py-3"><span class="text-xs font-bold px-2 py-1 rounded ${exc.cumuler ? 'bg-purple-100 text-purple-700' : 'bg-amber-100 text-amber-700'}">${exc.cumuler ? 'Cumulé' : 'Remplacement'}</span></td>
+      <td class="px-4 py-3 text-right"><button onclick="deleteException('${exc.date}')" class="text-rose-600 hover:text-rose-800 text-xs font-semibold bg-rose-50 px-3 py-1.5 rounded">Supprimer</button></td>
+    </tr>`).join('')}
+    </tbody></table></div>`;
+}
+
+async function addException(e) {
+  e.preventDefault();
+  const body = {
+    date: document.getElementById("exc_date").value,
+    label: document.getElementById("exc_label").value,
+    matin_debut: document.getElementById("exc_md").value,
+    matin_fin: document.getElementById("exc_mf").value,
+    aprem_debut: document.getElementById("exc_ad").value,
+    aprem_fin: document.getElementById("exc_af").value,
+    no_pointage: false,
+    cumuler: document.getElementById("exc_cumuler").checked
+  };
+  await fetch(`${API}/admin/employees/${curEmpId}/exceptions/?creche=${encodeURIComponent(curCreche)}`, {
+    method: "POST", headers: {"Content-Type":"application/json"}, body: JSON.stringify(body)
+  });
+  document.getElementById("exc_date").value = "";
+  document.getElementById("exc_md").value = "";
+  document.getElementById("exc_mf").value = "";
+  document.getElementById("exc_ad").value = "";
+  document.getElementById("exc_af").value = "";
+  document.getElementById("exc_cumuler").checked = false;
+  await loadExceptionsTab();
+  const tRes = await fetch(`${API}/admin/employees/${curEmpId}/time/?month=${currentMonth}&year=${currentYear}&creche=${encodeURIComponent(curCreche)}`).then(r => r.json());
+  updateStats(tRes);
+}
+
+async function deleteException(date) {
+  if (!confirm("Supprimer ce jour personnalisé ?")) return;
+  await fetch(`${API}/admin/employees/${curEmpId}/exceptions/${date}?creche=${encodeURIComponent(curCreche)}`, {method:"DELETE"});
+  await loadExceptionsTab();
+}
+
+// ─── AJUSTEMENT SOLDE ───────────────────────────────────────────────────────
+
+async function loadAdjustmentsTab() {
+  const data = await fetch(`${API}/admin/employees/${curEmpId}/balance/adjustments?creche=${encodeURIComponent(curCreche)}`).then(r => r.json());
+  renderAdjustments(data);
+}
+
+function renderAdjustments(data) {
+  const el = document.getElementById("adjustmentsTable");
+  if (!data.length) { el.innerHTML = '<p class="text-slate-400 text-sm">Aucun ajustement enregistré.</p>'; return; }
+  el.innerHTML = `<div class="overflow-x-auto"><table class="w-full text-left border-collapse text-sm">
+    <thead><tr class="bg-slate-50 border-b border-slate-200 text-slate-500 uppercase text-xs font-semibold">
+      <th class="px-4 py-2">Date</th><th class="px-4 py-2">Ajustement</th>
+      <th class="px-4 py-2">Motif</th><th class="px-4 py-2 text-right">Action</th>
+    </tr></thead>
+    <tbody class="divide-y divide-slate-100">
+    ${data.map(adj => {
+      const h = Math.floor(Math.abs(adj.minutes)/60), m = Math.abs(adj.minutes)%60;
+      const label = (adj.minutes >= 0 ? '+' : '-') + h + 'h' + String(m).padStart(2,'0');
+      const color = adj.minutes >= 0 ? 'text-emerald-600' : 'text-rose-600';
+      return `<tr class="hover:bg-slate-50">
+        <td class="px-4 py-2 text-slate-600">${adj.created_at ? adj.created_at.substring(0,10) : ''}</td>
+        <td class="px-4 py-2 font-bold"><span class="${color}">${label} (${adj.minutes > 0 ? '+' : ''}${adj.minutes} min)</span></td>
+        <td class="px-4 py-2 text-slate-600">${adj.reason || ''}</td>
+        <td class="px-4 py-2 text-right"><button onclick="deleteAdjustment(${adj.id})" class="text-rose-600 hover:text-rose-800 text-xs">Supprimer</button></td>
+      </tr>`;
+    }).join('')}
+    </tbody></table></div>`;
+}
+
+async function addAdjustment(e) {
+  e.preventDefault();
+  const h = parseInt(document.getElementById("adj_hours").value) || 0;
+  const m = parseInt(document.getElementById("adj_mins").value) || 0;
+  if (h === 0 && m === 0) { alert("Veuillez saisir une durée."); return; }
+  let total = h * 60 + m;
+  if (document.getElementById("adj_direction").value === "minus") total = -total;
+  const reason = document.getElementById("adj_reason").value;
+  await fetch(`${API}/admin/employees/${curEmpId}/balance/adjust?creche=${encodeURIComponent(curCreche)}`, {
+    method: "POST", headers: {"Content-Type":"application/json"},
+    body: JSON.stringify({minutes: total, reason})
+  });
+  document.getElementById("adj_hours").value = "";
+  document.getElementById("adj_mins").value = "";
+  document.getElementById("adj_reason").value = "";
+  await loadAdjustmentsTab();
+  const tRes = await fetch(`${API}/admin/employees/${curEmpId}/time/?month=${currentMonth}&year=${currentYear}&creche=${encodeURIComponent(curCreche)}`).then(r => r.json());
+  updateStats(tRes);
+}
+
+async function deleteAdjustment(adjId) {
+  if (!confirm("Supprimer cet ajustement ?")) return;
+  await fetch(`${API}/admin/employees/${curEmpId}/balance/adjustments/${adjId}`, {method:"DELETE"});
+  await loadAdjustmentsTab();
+  const tRes = await fetch(`${API}/admin/employees/${curEmpId}/time/?month=${currentMonth}&year=${currentYear}&creche=${encodeURIComponent(curCreche)}`).then(r => r.json());
+  updateStats(tRes);
+}
+
+async function clearAllAdjustments() {
+  if (!confirm("Supprimer TOUS les ajustements de cet employé ?")) return;
+  const adjs = await fetch(`${API}/admin/employees/${curEmpId}/balance/adjustments?creche=${encodeURIComponent(curCreche)}`).then(r => r.json());
+  for (const adj of adjs) {
+    await fetch(`${API}/admin/employees/${curEmpId}/balance/adjustments/${adj.id}`, {method:"DELETE"});
+  }
+  await loadAdjustmentsTab();
+  const tRes = await fetch(`${API}/admin/employees/${curEmpId}/time/?month=${currentMonth}&year=${currentYear}&creche=${encodeURIComponent(curCreche)}`).then(r => r.json());
+  updateStats(tRes);
+}
+
+function updateStats(tRes) {
+  document.getElementById("statWorked").innerText = `${Math.floor(tRes.total_worked_minutes/60)}h${(tRes.total_worked_minutes%60).toString().padStart(2,"0")}`;
+  document.getElementById("statContract").innerText = `${Math.floor(tRes.total_contract_minutes/60)}h${(tRes.total_contract_minutes%60).toString().padStart(2,"00")}`;
+  const isPosTotal = tRes.total_diff_minutes >= 0;
+  const diffBox = document.getElementById("statDiffBox");
+  diffBox.className = `p-6 rounded-2xl shadow-sm border ${isPosTotal ? "bg-emerald-50 border-emerald-200" : "bg-rose-50 border-rose-200"}`;
+  document.getElementById("statDiffTitle").className = `text-sm font-medium mb-1 ${isPosTotal ? "text-emerald-700" : "text-rose-700"}`;
+  const statDiffEl = document.getElementById("statDiff");
+  statDiffEl.className = `text-2xl font-bold ${isPosTotal ? "text-emerald-600" : "text-rose-600"}`;
+  statDiffEl.innerText = formatMinutes(tRes.total_diff_minutes);
 }
 </script>
 </body>
