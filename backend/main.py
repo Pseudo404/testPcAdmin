@@ -28,6 +28,7 @@ class ScheduleExceptionEntry(BaseModel):
     date: str; label: str = "Journée exceptionnelle"
     matin_debut: str = ""; matin_fin: str = ""; aprem_debut: str = ""; aprem_fin: str = ""
     no_pointage: bool = False
+    cumuler: bool = False
 
 class CrecheCreate(BaseModel):
     nom: str; password: str
@@ -93,13 +94,115 @@ def exception_for(db: Session, employee_id: str, creche: str, day: datetime.date
         database.ScheduleException.creche_nom == creche,
         database.ScheduleException.date == day.isoformat()).first()
 
+
+def extract_intervals(sched):
+    intervals = []
+    if sched and not sched.no_pointage:
+        if sched.matin_debut and sched.matin_fin:
+            sh = int(sched.matin_debut[:2])*60 + int(sched.matin_debut[3:])
+            eh = int(sched.matin_fin[:2])*60 + int(sched.matin_fin[3:])
+            if eh > sh: intervals.append([sh, eh])
+        if sched.aprem_debut and sched.aprem_fin:
+            sh = int(sched.aprem_debut[:2])*60 + int(sched.aprem_debut[3:])
+            eh = int(sched.aprem_fin[:2])*60 + int(sched.aprem_fin[3:])
+            if eh > sh: intervals.append([sh, eh])
+    return intervals
+
+def merge_intervals(intervals):
+    if not intervals: return []
+    intervals.sort(key=lambda x: x[0])
+    merged = [intervals[0]]
+    for current in intervals[1:]:
+        previous = merged[-1]
+        if current[0] <= previous[1]:
+            previous[1] = max(previous[1], current[1])
+        else:
+            merged.append(current)
+    return merged
+
+def get_effective_intervals(db, employee_id, creche, schedules, day_date):
+    normal_sched = {s.jour: s for s in schedules}.get(day_date.weekday())
+    exc = exception_for(db, employee_id, creche, day_date)
+    if not exc:
+        return merge_intervals(extract_intervals(normal_sched))
+    
+    exc_intervals = extract_intervals(exc)
+    cumuler = getattr(exc, 'cumuler', 0)
+    if cumuler:
+        normal_intervals = extract_intervals(normal_sched)
+        return merge_intervals(normal_intervals + exc_intervals)
+    else:
+        return merge_intervals(exc_intervals)
+
 def contract_minutes_for_day(db: Session, employee_id: str, creche: str, schedules, day: datetime.date) -> int:
     if not timeclock_enabled_on(db, day, creche):
         return 0
-    exceptional = exception_for(db, employee_id, creche, day)
-    if exceptional:
-        return schedule_minutes(exceptional)
-    return schedule_minutes({s.jour: s for s in schedules}.get(day.weekday()))
+    intervals = get_effective_intervals(db, employee_id, creche, schedules, day)
+    return sum(end - start for start, end in intervals)
+
+
+def extract_intervals(sched):
+    intervals = []
+    if sched and not sched.no_pointage:
+        if sched.matin_debut and sched.matin_fin:
+            sh = int(sched.matin_debut[:2])*60 + int(sched.matin_debut[3:])
+            eh = int(sched.matin_fin[:2])*60 + int(sched.matin_fin[3:])
+            if eh > sh: intervals.append([sh, eh])
+        if sched.aprem_debut and sched.aprem_fin:
+            sh = int(sched.aprem_debut[:2])*60 + int(sched.aprem_debut[3:])
+            eh = int(sched.aprem_fin[:2])*60 + int(sched.aprem_fin[3:])
+            if eh > sh: intervals.append([sh, eh])
+    return intervals
+
+def merge_intervals(intervals):
+    if not intervals: return []
+    intervals.sort(key=lambda x: x[0])
+    merged = [intervals[0]]
+    for current in intervals[1:]:
+        previous = merged[-1]
+        if current[0] <= previous[1]:
+            previous[1] = max(previous[1], current[1])
+        else:
+            merged.append(current)
+    return merged
+
+def get_effective_intervals(db, employee_id, creche, schedules, day_date):
+    normal_sched = {s.jour: s for s in schedules}.get(day_date.weekday())
+    exc = exception_for(db, employee_id, creche, day_date)
+    if not exc:
+        return merge_intervals(extract_intervals(normal_sched))
+    
+    exc_intervals = extract_intervals(exc)
+    cumuler = getattr(exc, 'cumuler', 0)
+    if cumuler:
+        normal_intervals = extract_intervals(normal_sched)
+        return merge_intervals(normal_intervals + exc_intervals)
+    else:
+        return merge_intervals(exc_intervals)
+
+def contract_minutes_for_day(db: Session, employee_id: str, creche: str, schedules, day: datetime.date) -> int:
+    if not timeclock_enabled_on(db, day, creche):
+        return 0
+    intervals = get_effective_intervals(db, employee_id, creche, schedules, day)
+    return sum(end - start for start, end in intervals)
+
+def get_break_overlap(arr: str, dep: str, intervals) -> int:
+    if not arr or not dep or len(intervals) < 2:
+        return 0
+    try:
+        arr_m = int(arr[:2])*60 + int(arr[3:])
+        dep_m = int(dep[:2])*60 + int(dep[3:])
+        overlap = 0
+        for i in range(len(intervals)-1):
+            b_start = intervals[i][1]
+            b_end = intervals[i+1][0]
+            o_start = max(arr_m, b_start)
+            o_end = min(dep_m, b_end)
+            if o_end > o_start:
+                overlap += (o_end - o_start)
+        return overlap
+    except:
+        return 0
 
 def month_contract_minutes(schedules, month: int, year: int, db: Session, employee_id: str, creche: str) -> int:
     first = datetime.date(year, month, 1)
@@ -229,7 +332,17 @@ def admin_get_employees(month: int, year: int, db: Session = Depends(database.ge
         days = {}
         for e in ems:
             d = e.timestamp[:10]; days.setdefault(d, {}); days[d][e.type_event] = e.timestamp[11:16]
-        worked = sum(calc(ev.get("ARRIVEE",""), ev.get("DEPART","")) for ev in days.values() if "ARRIVEE" in ev and "DEPART" in ev)
+        
+        worked = 0
+        for d, ev in days.items():
+            arr = ev.get("ARRIVEE", "")
+            dep = ev.get("DEPART", "")
+            if arr and dep:
+                day_date = __import__("datetime").date.fromisoformat(d)
+                intervals = get_effective_intervals(db, emp.id, a.creche_nom, scheds, day_date)
+                wm = max(0, calc(arr, dep) - get_break_overlap(arr, dep, intervals))
+                worked += wm
+                
         contract = month_contract_minutes(scheds, month, year, db, emp.id, a.creche_nom)
         first_schedule = next((s for s in sorted(scheds, key=lambda row: row.jour) if not s.no_pointage and (s.matin_debut or s.aprem_debut)), None)
         result.append({"id": emp.id, "nom": emp.nom, "prenom": emp.prenom, "role": emp.role or "",
@@ -247,18 +360,35 @@ def admin_time(id: str, month: int, year: int, creche: str = "", db: Session = D
     sq = db.query(database.EmployeeSchedule).filter(database.EmployeeSchedule.employee_id == id)
     if creche: sq = sq.filter(database.EmployeeSchedule.creche_nom == creche)
     sched = {s.jour: s for s in sq.all()}
-    days = {}
-    for e in q.all(): days.setdefault(e.timestamp[:10], []).append(e)
+    events_by_day = {}
+    for e in q.all(): events_by_day.setdefault(e.timestamp[:10], []).append(e)
+    
+    first = datetime.date(year, month, 1)
+    next_month = datetime.date(year + (month == 12), 1 if month == 12 else month + 1, 1)
+    last = min(next_month - datetime.timedelta(days=1), datetime.date.today())
+    
     daily, tw, tc = [], 0, 0
-    for day, evts in sorted(days.items()):
-        wd = datetime.datetime.strptime(day, "%Y-%m-%d").weekday()
-        current_day = datetime.datetime.strptime(day, "%Y-%m-%d").date()
-        cm = contract_minutes_for_day(db, id, creche, list(sched.values()), current_day)
-        arr = next((e.timestamp[11:16] for e in evts if e.type_event=="ARRIVEE"), None)
-        dep = next((e.timestamp[11:16] for e in evts if e.type_event=="DEPART"), None)
-        wm = calc(arr, dep) if arr and dep else 0; ic = bool(arr and dep)
-        tw += wm; tc += cm
-        daily.append({"date": day, "worked_minutes": wm, "contract_minutes": cm, "diff_minutes": wm-cm, "is_complete": ic, "events_count": len(evts)})
+    if last >= first:
+        day = first
+        while day <= last:
+            d_str = day.isoformat()
+            evts = events_by_day.get(d_str, [])
+            cm = contract_minutes_for_day(db, id, creche, list(sched.values()), day)
+            
+            arr = next((e.timestamp[11:16] for e in evts if e.type_event=="ARRIVEE"), None)
+            dep = next((e.timestamp[11:16] for e in evts if e.type_event=="DEPART"), None)
+            
+            if arr and dep:
+                intervals = get_effective_intervals(db, id, creche, list(sched.values()), day)
+                wm = max(0, calc(arr, dep) - get_break_overlap(arr, dep, intervals))
+            else:
+                wm = 0
+                
+            ic = bool(arr and dep)
+            tw += wm; tc += cm
+            daily.append({"date": d_str, "worked_minutes": wm, "contract_minutes": cm, "diff_minutes": wm-cm, "is_complete": ic, "events_count": len(evts)})
+            day += datetime.timedelta(days=1)
+            
     return {"employee_id": id, "has_schedule": bool(sched), "month": month, "year": year, "daily": daily,
             "total_worked_minutes": tw, "total_contract_minutes": tc, "total_diff_minutes": tw-tc}
 
@@ -307,7 +437,7 @@ def admin_get_exceptions(id: str, creche: str = "", db: Session = Depends(databa
     q = db.query(database.ScheduleException).filter(database.ScheduleException.employee_id == id)
     if creche: q = q.filter(database.ScheduleException.creche_nom == creche)
     return [{"date": e.date, "label": e.label, "matin_debut": e.matin_debut, "matin_fin": e.matin_fin,
-             "aprem_debut": e.aprem_debut, "aprem_fin": e.aprem_fin, "no_pointage": bool(e.no_pointage)}
+             "aprem_debut": e.aprem_debut, "aprem_fin": e.aprem_fin, "no_pointage": bool(e.no_pointage), "cumuler": bool(getattr(e, 'cumuler', 0))}
             for e in q.order_by(database.ScheduleException.date.asc()).all()]
 
 @app.post("/admin/employees/{id}/exceptions/")
@@ -324,7 +454,7 @@ def admin_post_exception(id: str, entry: ScheduleExceptionEntry, creche: str = "
     if existing: db.delete(existing)
     db.add(database.ScheduleException(employee_id=id, creche_nom=creche, date=entry.date, label=entry.label.strip() or "Journée exceptionnelle",
         matin_debut=entry.matin_debut, matin_fin=entry.matin_fin, aprem_debut=entry.aprem_debut, aprem_fin=entry.aprem_fin,
-        no_pointage=int(entry.no_pointage)))
+        no_pointage=int(entry.no_pointage), cumuler=int(entry.cumuler)))
     db.commit()
     return {"status": "ok"}
 
@@ -347,9 +477,13 @@ def employee_balance(id: str, creche: str, db: Session = Depends(database.get_db
     balance = 0
     for date, day_events in sorted(by_day.items()):
         day = datetime.date.fromisoformat(date)
-        worked = calc(day_events.get("ARRIVEE", ""), day_events.get("DEPART", ""))
+        arr = day_events.get("ARRIVEE", "")
+        dep = day_events.get("DEPART", "")
+        intervals = get_effective_intervals(db, id, creche, schedules, day)
+        worked = max(0, calc(arr, dep) - get_break_overlap(arr, dep, eff_sched)) if arr and dep else 0
+        
         balance += worked - contract_minutes_for_day(db, id, creche, schedules, day)
-        if balance == 0: balance = 0
+        if balance < 0: balance = 0
     return {"diff_minutes": balance}
 
 # ── BDD : gestion crèches ──────────────────────────────────────────────────────

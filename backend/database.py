@@ -40,6 +40,7 @@ class EmployeeSchedule(Base):
     # Le jour est bien planifié, mais aucune signature n'est attendue (week-end,
     # fermeture, récupération…).
     no_pointage = Column(Integer, nullable=False, default=0)
+    cumuler = Column(Integer, nullable=False, default=0)
 
 class ScheduleException(Base):
     """Horaire ponctuel qui remplace la grille hebdomadaire (formation, etc.)."""
@@ -54,6 +55,7 @@ class ScheduleException(Base):
     aprem_debut = Column(String, default="")
     aprem_fin = Column(String, default="")
     no_pointage = Column(Integer, nullable=False, default=0)
+    cumuler = Column(Integer, nullable=False, default=0)
 
 class Emargement(Base):
     __tablename__ = "emargements"
@@ -88,6 +90,10 @@ def _migrate():
             cols = [c["name"] for c in insp.get_columns("employee_schedules")]
             if "no_pointage" not in cols:
                 conn.execute(text("ALTER TABLE employee_schedules ADD COLUMN no_pointage INTEGER NOT NULL DEFAULT 0"))
+                if "schedule_exceptions" in insp.get_table_names():
+            cols = [c["name"] for c in insp.get_columns("schedule_exceptions")]
+            if "cumuler" not in cols:
+                conn.execute(text("ALTER TABLE schedule_exceptions ADD COLUMN cumuler INTEGER NOT NULL DEFAULT 0"))
         if "timeclock_states" in insp.get_table_names():
             cols = [c["name"] for c in insp.get_columns("timeclock_states")]
             if "creche_nom" not in cols:
